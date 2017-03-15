@@ -56,23 +56,6 @@ def unique_insn_count(c, task_id):
     return len(r)
 
 
-def calc(c, arch):
-    tasks = extract_ids(c, arch)
-    x = []
-    for task in tasks:
-        task_id = long(task[0])
-        dyn_data = extract_dyn_data(c, task_id)
-        suc, und, uns, unk = 0, 0, 0, 0
-        for data in dyn_data:
-            suc += int(data[3])
-            und += int(data[4])
-            uns += int(data[5])
-            unk += int(data[6])
-        tot = suc + und + uns + unk
-        x.append((suc, uns, tot))
-    return x
-
-
 def fetch_addrs(c, task_id):
     addrs = extract_addrs(c, task_id)
     r = []
@@ -90,6 +73,35 @@ def coverage(c, static_id, trace_id):
     return (float(len(inter)) / len(stat))
 
 
+def is_lib_addr(addr, bins):
+    return (not any(x <= addr <= y for x, y in bins))
+
+
+def filter_bin_addrs(addrs, bins):
+    s = set()
+    [s.add(x) for x in addrs if not is_lib_addr(x, bins)]
+    return s
+
+
+def false_negative(tr_addrs, st_addrs, bins):
+    sit = Set.intersection(st_addrs, tr_addrs)
+    lit = set()
+    [lit.add(x) for x in tr_addrs if is_lib_addr(x, bins)]
+    addrs = Set.union(sit, lit)
+    return Set.difference(tr_addrs, addrs)
+
+
+def false_negative_rel(tr_addrs, st_addrs, bins):
+    fn = false_negative(tr_addrs, st_addrs, bins)
+    s = filter_bin_addrs(tr_addrs, bins)
+    return float(len(fn)) / float(len(s))
+
+
+def power(tr_addrs, bins):
+    s = filter_bin_addrs(tr_addrs, bins)
+    return float(len(s)) / len(tr_addrs)
+
+
 def fetch_data(c, static_id, trace_id):
     dyn_data = extract_dyn_data(c, trace_id)
     suc, und, uns, unk = 0, 0, 0, 0
@@ -99,23 +111,22 @@ def fetch_data(c, static_id, trace_id):
         uns += int(data[5])
         unk += int(data[6])
     total = suc + und + uns + unk
-    ins_t = extract_insns(c, trace_id)
-    ins_s = extract_insns(c, static_id)
     tr_ad = fetch_addrs(c, trace_id)
     st_ad = fetch_addrs(c, static_id)
-    inter = Set.intersection(tr_ad, st_ad)
-    diffr = Set.difference(tr_ad, st_ad)
-    return {"unique_trace": len(ins_t),
-            "unique_binary": len(ins_s),
-            "unique_library": len(diffr),
-            "coverage": float(len(inter)) / len(st_ad),
-            "sucs_rel": float(suc) / total,
+    bins = [(min(st_ad), max(st_ad))]
+    for x, y in bins:
+        print "%Xd, %Xd" % (x, y)
+    fn = false_negative_rel(tr_ad, st_ad, bins)
+    pw = power(tr_ad, bins)
+    return {"sucs_rel": float(suc) / total,
             "uns_rel": float(uns) / total,
+            "unk_rel": float(unk) / total,
             "sucs_abs": suc,
             "uns_abs": uns,
             "unk_abs": unk,
             "und_abs": und,
-            "total": total}
+            "false_neg": fn,
+            "stat_power": pw}
 
 
 def draw_errors(arch, uns, unk, und):
@@ -125,10 +136,10 @@ def draw_errors(arch, uns, unk, und):
     errors = [uns, unk, und]
     errors = map((lambda x: float(x) / total), errors)
     fig, ax = plt.subplots()
+    ax.set_title(arch)
     fig.canvas.set_window_title('')
     ax.pie(errors, labels=labels, autopct='%1.3f%%', labeldistance=1.2)
     ax.axis('equal')
-    ax.set_title(arch)
 
 
 def draw_sum(arch, suc, uns, unk, und):
@@ -141,26 +152,27 @@ def draw_sum(arch, suc, uns, unk, und):
     numbers = map((lambda x: float(x) / total * 100), numbers)
     fig, ax = plt.subplots()
     fig.canvas.set_window_title('')
+    ax.set_title(arch)
     ax.pie(numbers, explode=explode, colors=colors, labels=labels,
            autopct='%1.1f%%', labeldistance=1.2)
     ax.axis('equal')
-    ax.set_title(arch)
 
 
-def draw_graphs(arch, unq_t, unq_b, unq_l, sucss, unsnd, cover):
-    x = range(len(unq_t))
+def draw_graphs(arch, sucss, unsnd, unknw, fn, pw):
+    x = range(len(sucss))
     fig, ax1 = plt.subplots()
+    ax1.set_title(arch)
     fig.canvas.set_window_title('')
-    ax2 = ax1.twinx()
-    ax1.set_ylabel('abs numbers', color='b')
-    l1, = ax1.plot(x, unq_t)
-    l2, = ax1.plot(x, unq_b)
-    l21, =  ax1.plot(x, unq_l)
-    ax2.set_ylabel('rel numbers', color='r')
-    l3, = ax2.plot(x, sucss, 'r-')
-    l4, = ax2.plot(x, unsnd, 'r-')
-    l5, = ax2.plot(x, cover, 'r-')
-#    plt.legend([l1, l2], ['total', 'successful'])
+    ax1.set_ylabel('rel %', color='b')
+    l1, = ax1.plot(x, sucss)
+    l2, = ax1.plot(x, unsnd)
+    l3, =  ax1.plot(x, unknw)
+    l4, =  ax1.plot(x, fn)
+    l5, =  ax1.plot(x, pw)
+    plt.legend([l1, l2, l3, l4, l5],
+               ['successful', 'semantic soundness',
+                'semantic completeness',
+                'false negative', 'statistic power'])
     plt.grid()
 
 
@@ -169,17 +181,16 @@ def draw(c, arch):
     data = map((lambda (s, t): fetch_data(c, s, t)), pairs)
     sucss = map((lambda d: d["sucs_rel"]), data)
     unsnd = map((lambda d: d["uns_rel"]), data)
-    cover = map((lambda d: d["coverage"]), data)
-    unq_t = map((lambda d: d["unique_trace"]), data)
-    unq_b = map((lambda d: d["unique_binary"]), data)
-    unq_l = map((lambda d: d["unique_library"]), data)
+    unknw = map((lambda d: d["unk_rel"]), data)
+    fn = map((lambda d: d["false_neg"]), data)
+    pw = map((lambda d: d["stat_power"]), data)
     suc = reduce((lambda x, d: x + d['sucs_abs']), data, 0)
     uns = reduce((lambda x, d: x + d['uns_abs']), data, 0)
     unk = reduce((lambda x, d: x + d['unk_abs']), data, 0)
     und = reduce((lambda x, d: x + d['und_abs']), data, 0)
     draw_sum(arch, suc, uns, unk, und)
     draw_errors(arch, uns, unk, und)
-    draw_graphs(arch, unq_t, unq_b, unq_l, sucss, unsnd, cover)
+    draw_graphs(arch, sucss, unsnd, unknw, fn, pw)
     plt.show()
 
 
@@ -195,19 +206,18 @@ def total_trace_count(c, task_id):
     total += suc + und + uns + unk
     return total
 
-
 def play(c):
-    t = list(fetch_addrs(c, 1))
-    s = list(fetch_addrs(c, 25))
-    t.sort()
-    s.sort()
-    a = max(s)
-    cnt = sum(1 for i in t if i > a)
-    print "static: %d, trace: %d / %d" % (len(s), cnt, len(t))
-    print "max static %0X" % a
-    print "insn count %d %d" % (unique_insn_count(c, 25), unique_insn_count(c, 1))
-    for i in t:
-        print "%0X" % i
+    trace_id = 1
+    static_id = 25
+    tr_ad = fetch_addrs(c, trace_id)
+    st_ad = fetch_addrs(c, static_id)
+
+    bins = [(min(st_ad), max(st_ad))]
+    for x,y in bins:
+        print "%Xd, %Xd" % (x, y)
+    fn = false_negative_rel(tr_ad, st_ad, bins)
+    pw = power(tr_ad, bins)
+    print "%f %f"  % (fn, pw)
 
 
 if __name__ == "__main__":
@@ -227,4 +237,5 @@ if __name__ == "__main__":
     conn = sqlite3.connect(db)
     c = conn.cursor()
     draw(c, arch)
+#    play(c)
     conn.close()
