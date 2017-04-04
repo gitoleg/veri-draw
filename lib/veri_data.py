@@ -70,7 +70,6 @@ def fetch_insn_addrs(c, task_id, insn_id):
     return map((lambda x: int(x[0])), fetchall(c, q))
 
 
-# TODO: use join here?
 def fetch_insns(c, task_id):
     q = "SELECT Id, Name, Bytes FROM insn WHERE Id IN \
     (SELECT Id_insn FROM task_insn WHERE Id_task = '%s')" % task_id

@@ -6,6 +6,7 @@ import argparse
 import sqlite3
 import veri_data
 
+__save_path = None
 
 def make_title(arch, plot_name):
     return "{}: {}".format(arch, plot_name)
@@ -30,6 +31,17 @@ def percent_str(x, y, name):
     return '{0:.3f}% {1}'.format(p, name)
 
 
+def save_fig(fig, name, arch, width, height):
+    if __save_path == None:
+        pass
+    else:
+        name = '%s/%s-%s.png' % (__save_path, arch, name)
+        w, h = fig.get_figwidth(), fig.get_figheight()
+        fig.set_size_inches(width, height)
+        fig.savefig(name, dpi=100)
+        fig.set_size_inches(w, h)
+
+
 def draw_errors(arch, uns, unk, und):
     title = make_title(arch, "error structure")
     total = uns + unk + und
@@ -44,6 +56,7 @@ def draw_errors(arch, uns, unk, und):
               percent_str(und, total, 'disassembler errors')]
     plt.legend(a[0], labels, loc='upper left', bbox_to_anchor=(-0.1, 1.),)
     ax.axis('equal')
+    save_fig(fig, 'error-structure', arch, 10.0, 10.0)
 
 
 def draw_summary(arch, suc, uns, unk, und):
@@ -58,13 +71,7 @@ def draw_summary(arch, suc, uns, unk, und):
     ax.pie(numbers, explode=explode, colors=colors, labels=labels,
                  autopct='%1.1f%%', labeldistance=1.2)
     ax.axis('equal')
-
-
-def draw_arrow(ax, x, y, dx, dy, label):
-    ax.arrow(x, y, dx, dy, head_width=0.005,
-             head_length=10, zorder=4)
-    xh, yh = x + dx / 2.0 + 0.1, y + dy / 2.0
-    plt.text(xh, yh, label, color='blue')
+    save_fig(fig, 'summary', arch, 10.0, 10.0)
 
 
 def draw_stats(arch, sucss, unsnd, unknw, fn, pw):
@@ -76,18 +83,13 @@ def draw_stats(arch, sucss, unsnd, unknw, fn, pw):
     l3, = ax.plot(x, fn)
     ticks_y = ticker.FuncFormatter(lambda y, pos: '{0:.1f}'.format(y * 100))
     ax.yaxis.set_major_formatter(ticks_y)
-    # half = len(sucss) / 2.0
-    # x0 = half / 2.0
-    # draw_arrow(ax, 0, 0.25, x0, -0.01, 'gcc')
-    # draw_arrow(ax, half, 0.25, x0, -0.01, 'icc')
     leg = plt.legend([l1, l2, l3],
                      ['semantic soundness',
                       'semantic completeness',
                       'false negative'])
     set_legend_linewidth(leg, 3)
     plt.grid()
-
-
+    save_fig(fig, 'stats', arch, 14.0, 10.0)
 
 def draw_total(arch, sucss, unsnd, unknw, undis):
     fig, ax = make_subplot(arch, "total numbers")
@@ -105,7 +107,7 @@ def draw_total(arch, sucss, unsnd, unknw, undis):
                       'semantic completeness', 'disassembling errors'])
     set_legend_linewidth(leg, 3)
     plt.grid()
-
+    save_fig(fig, 'total-numbers', arch, 14.0, 10.0)
 
 def draw_bin_ratio(arch, bin):
     fig, ax = make_subplot(arch, "binary/library ratio")
@@ -119,6 +121,7 @@ def draw_bin_ratio(arch, bin):
     leg = plt.legend([l1, l2], ['code in libraries', 'code in binary'])
     set_legend_linewidth(leg, 5)
     plt.grid()
+    save_fig(fig, 'bin-lib-ratio', arch, 14.0, 10.0)
 
 
 def constraint(data, length):
@@ -152,7 +155,6 @@ def draw(c, arch, length, threshold):
     draw_stats(arch, sucss_rel, unsnd_rel, unknw_rel, fn, pw)
     draw_total(arch, sucss_abs, unsnd_abs, unknw_abs, undis_abs)
     draw_bin_ratio(arch, bin)
-    plt.show()
 
 
 if __name__ == '__main__':
@@ -161,8 +163,13 @@ if __name__ == '__main__':
     p.add_argument('--thr', default=0, type=int,
                    help='threshold, min number of instructions in a trace')
     p.add_argument('--arch', help='architecture')
+    p.add_argument('--save', help='save plots to specified path', default='.')
+    p.add_argument('--blind', help='don\'t show plots', action="store_true");
     p.add_argument('db', help='database')
     args = p.parse_args()
+    __save_path = args.save
     conn = sqlite3.connect(args.db)
     c = conn.cursor()
-    draw(c, args.arch,  args.len, args.thr)
+    draw(c, args.arch, args.len, args.thr)
+    if not args.blind:
+        plt.show()
