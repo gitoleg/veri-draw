@@ -13,12 +13,6 @@ def fetchone(c, q):
     return c.fetchone()
 
 
-def extract_ids(c, arch):
-    q = "SELECT * FROM task WHERE Id IN \
-    (SELECT Id FROM info WHERE Arch = '%s' And Kind = 'Trace')" % arch
-    return fetchall(c, q)
-
-
 def find_pairs(c, arch):
     qt = "SELECT * FROM info WHERE Arch = '%s' And Kind = 'Trace'" % arch
     qb = "SELECT * FROM info WHERE Arch = '%s' And Kind = 'Static'" % arch
@@ -53,23 +47,34 @@ def extract_insns(c, task_id):
 
 
 def extract_exec_ranges(c, task_id):
-    q = "SELECT * FROM bin_info WHERE Id_task = '%s'" % task_id
-    return map((lambda x: (x[2], x[3])), fetchall(c, q))
+    q = "SELECT Min_addr, Max_addr FROM bin_info WHERE Id_task = '%s'" % task_id
+    return fetchall(c, q)
 
 
 def extract_name(c, task_id):
     q = "SELECT Name FROM info WHERE Id = '%s'" % task_id
-    return fetchone(c,q)[0]
+    return fetchone(c, q)[0]
 
 
 def to_addrs(s):
-    return map((lambda x: int(x.strip())), list(s.split(' ')))
+    return map((lambda x: int(x.strip())), s)
 
 
+def fetch_task_addrs(c, task_id):
+    q = "SELECT Addr FROM insn_place WHERE Id_task = '%s'" % task_id
+    return map((lambda x: int(x[0])), fetchall(c, q))
+
+
+def fetch_insn_addrs(c, task_id, insn_id):
+    q = "SELECT Addr FROM insn_place WHERE Id_task = '%s' AND Id_insn = '%s'" % (task_id, insn_id)
+    return map((lambda x: int(x[0])), fetchall(c, q))
+
+
+# TODO: use join here?
 def fetch_insns(c, task_id):
-    q = "SELECT Name, Bytes, Addrs FROM Insn WHERE Id IN \
+    q = "SELECT Id, Name, Bytes FROM insn WHERE Id IN \
     (SELECT Id_insn FROM task_insn WHERE Id_task = '%s')" % task_id
-    return map((lambda (n, b, a): (n, b, to_addrs(a))), fetchall(c, q))
+    return map((lambda (id, n, b): (n, b, fetch_insn_addrs(c, task_id, id))), fetchall(c, q))
 
 
 def unfolded_insns(c, task_id):
@@ -81,10 +86,10 @@ def unfolded_insns(c, task_id):
     return r
 
 
-def fetch_addrs(c, task_id):
+def unique_task_addrs(c, task_id):
     x = set()
-    for i in unfolded_insns(c, task_id):
-        x.add(i[2])
+    for i in fetch_task_addrs(c, task_id):
+        x.add(i)
     return x
 
 
@@ -142,13 +147,13 @@ def fetch_data(c, static_id, trace_id):
     dyn_data = extract_dyn_data(c, trace_id)
     suc, und, uns, unk = 0, 0, 0, 0
     for data in dyn_data:
-        suc += int(data[3])
-        und += int(data[4])
-        uns += int(data[5])
-        unk += int(data[6])
+        suc += int(data[2])
+        und += int(data[3])
+        uns += int(data[4])
+        unk += int(data[5])
     total = suc + und + uns + unk
-    tr_ad = fetch_addrs(c, trace_id)
-    st_ad = fetch_addrs(c, static_id)
+    tr_ad = unique_task_addrs(c, trace_id)
+    st_ad = unique_task_addrs(c, static_id)
     bins = find_code_ranges(c, static_id, st_ad)
     fn = false_negative_rel(tr_ad, st_ad, bins)
     pw = stat_power(c, trace_id, bins)
