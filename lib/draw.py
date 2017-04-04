@@ -163,7 +163,7 @@ if __name__ == '__main__':
     p.add_argument('--thr', default=0, type=int,
                    help='threshold, min number of instructions in a trace')
     p.add_argument('--arch', help='architecture')
-    p.add_argument('--save', help='save plots to specified path', default='.')
+    p.add_argument('--save', help='save plots to specified path')
     p.add_argument('--blind', help='don\'t show plots', action="store_true");
     p.add_argument('db', help='database')
     args = p.parse_args()
