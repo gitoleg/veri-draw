@@ -76,10 +76,10 @@ def draw_stats(arch, sucss, unsnd, unknw, fn, pw):
     l3, = ax.plot(x, fn)
     ticks_y = ticker.FuncFormatter(lambda y, pos: '{0:.1f}'.format(y * 100))
     ax.yaxis.set_major_formatter(ticks_y)
-    half = len(sucss) / 2.0
-    x0 = half / 2.0
-    draw_arrow(ax, 0, 0.25, x0, -0.01, 'gcc')
-    draw_arrow(ax, half, 0.25, x0, -0.01, 'icc')
+    # half = len(sucss) / 2.0
+    # x0 = half / 2.0
+    # draw_arrow(ax, 0, 0.25, x0, -0.01, 'gcc')
+    # draw_arrow(ax, half, 0.25, x0, -0.01, 'icc')
     leg = plt.legend([l1, l2, l3],
                      ['semantic soundness',
                       'semantic completeness',
