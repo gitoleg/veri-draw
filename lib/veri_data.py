@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import sqlite3
-
+from os import path
 
 def fetchall(c, q):
     c.execute(q)
@@ -13,9 +13,9 @@ def fetchone(c, q):
     return c.fetchone()
 
 
-def find_pairs(c, arch):
-    qt = "SELECT * FROM info WHERE Arch = '%s' And Kind = 'Trace'" % arch
-    qb = "SELECT * FROM info WHERE Arch = '%s' And Kind = 'Static'" % arch
+def find_pairs(c):
+    qt = "SELECT * FROM info WHERE Kind = 'Trace'"
+    qb = "SELECT * FROM info WHERE Kind = 'Static'"
     traces = list(fetchall(c, qt))
     statics = list(fetchall(c, qb))
     ids, names = [], []
@@ -23,7 +23,7 @@ def find_pairs(c, arch):
         tid = tr[0]
         tnm = tr[2]
         for st in statics:
-            if tnm == st[2]:
+            if path.splitext(tnm)[0] == st[2]:
                 ids.append((st[0], tid))
                 names.append((st[2], tr[2]))
     return ids, names

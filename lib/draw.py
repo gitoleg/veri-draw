@@ -74,6 +74,14 @@ def draw_summary(arch, suc, uns, unk, und):
     save_fig(fig, 'summary', arch, 10.0, 10.0)
 
 
+def draw_stats2(fig, ax, name, unsnd, unknw):
+    x = range(len(unsnd))
+    lab0 = '%s: semantic soundness' % name
+    lab1 = '%s: semantic completness' % name
+    ax.plot(x, unsnd, label=lab0)
+    ax.plot(x, unknw, label=lab1)
+
+
 def draw_stats(arch, sucss, unsnd, unknw, fn, pw):
     fig, ax = make_subplot(arch, "stats")
     x = range(len(sucss))
@@ -90,6 +98,7 @@ def draw_stats(arch, sucss, unsnd, unknw, fn, pw):
     set_legend_linewidth(leg, 3)
     plt.grid()
     save_fig(fig, 'stats', arch, 14.0, 10.0)
+
 
 def draw_total(arch, sucss, unsnd, unknw, undis):
     fig, ax = make_subplot(arch, "total numbers")
@@ -108,6 +117,7 @@ def draw_total(arch, sucss, unsnd, unknw, undis):
     set_legend_linewidth(leg, 3)
     plt.grid()
     save_fig(fig, 'total-numbers', arch, 14.0, 10.0)
+
 
 def draw_bin_ratio(arch, bin):
     fig, ax = make_subplot(arch, "binary/library ratio")
@@ -131,11 +141,19 @@ def constraint(data, length):
         return data[:length]
 
 
+def get_data(curs, length, threshold):
+    all_data = []
+    for c in curs:
+        pairs, names = veri_data.find_pairs(c)
+        pairs = constraint(pairs, length)
+        data = map((lambda (s, t): veri_data.fetch_data(c, s, t)), pairs)
+        data = filter((lambda d: d["trace_len"] > threshold), data)
+        all_data.extend(data)
+    return all_data
+
+
 def draw(c, arch, length, threshold):
-    pairs, names = veri_data.find_pairs(c, arch)
-    pairs = constraint(pairs, length)
-    data = map((lambda (s, t): veri_data.fetch_data(c, s, t)), pairs)
-    data = filter((lambda d: d["trace_len"] > threshold), data)
+    data = get_data(c, length, threshold)
     sucss_rel = map((lambda d: d["suc_rel"]), data)
     unsnd_rel = map((lambda d: d["uns_rel"]), data)
     unknw_rel = map((lambda d: d["unk_rel"]), data)
@@ -165,11 +183,12 @@ if __name__ == '__main__':
     p.add_argument('--arch', help='architecture')
     p.add_argument('--save', help='save plots to specified path')
     p.add_argument('--blind', help='don\'t show plots', action="store_true");
-    p.add_argument('db', help='database')
+    p.add_argument('db', nargs='+', help='database')
     args = p.parse_args()
     __save_path = args.save
-    conn = sqlite3.connect(args.db)
-    c = conn.cursor()
-    draw(c, args.arch, args.len, args.thr)
+    cons = map((lambda x: sqlite3.connect(x)), args.db)
+    curs = map((lambda conn: conn.cursor()), cons)
+    draw(curs, args.arch, args.len, args.thr)
     if not args.blind:
         plt.show()
+    iter((lambda conn: conn.close()), cons)
