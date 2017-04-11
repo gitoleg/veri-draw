@@ -43,7 +43,7 @@ def save_fig(fig, name, arch, width, height):
 
 
 def draw_errors(arch, uns, unk, und):
-    title = make_title(arch, "error structure")
+    title = make_title(arch, "errors structure")
     total = uns + unk + und
     errors = map((lambda x: float(x) / total), [uns, unk, und])
     fig, ax = plt.subplots()
@@ -56,7 +56,7 @@ def draw_errors(arch, uns, unk, und):
               percent_str(und, total, 'disassembler errors')]
     plt.legend(a[0], labels, loc='upper left', bbox_to_anchor=(-0.1, 1.),)
     ax.axis('equal')
-    save_fig(fig, 'error-structure', arch, 10.0, 10.0)
+    save_fig(fig, 'errors-structure', arch, 10.0, 10.0)
 
 
 def draw_summary(arch, suc, uns, unk, und):
